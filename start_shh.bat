@@ -10,6 +10,39 @@ echo     SHH 1.0 - Smart Host Hub (Windows AI Bridge)
 echo ========================================================
 echo.
 
+:: ---------------------------------------------------------------
+:: Detect privilege level (Administrator or Standard user)
+:: ---------------------------------------------------------------
+set "SHH_IS_ADMIN="
+for /f "delims=" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)" 2^>nul') do set "SHH_IS_ADMIN=%%A"
+if not defined SHH_IS_ADMIN (
+    fltmc >nul 2>&1 && set "SHH_IS_ADMIN=True"
+)
+if /i "%SHH_IS_ADMIN%"=="True" (
+    echo [PRIVILEGE] Administrator mode  ^(UAC elevated^)
+) else (
+    echo [PRIVILEGE] Standard user mode
+    echo             For full power run:  start_shh_admin.bat    or:  start_shh.bat admin
+)
+echo.
+
+:: ---------------------------------------------------------------
+:: Optional auto-elevation: "start_shh.bat admin"
+:: ---------------------------------------------------------------
+if /i "%~1"=="admin" if /i not "%SHH_IS_ADMIN%"=="True" (
+    echo [SHH] Requesting Administrator privileges ^(UAC prompt^)...
+    echo       A NEW elevated window will open. You may close this one.
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -ArgumentList 'elevated' -WorkingDirectory '%~dp0' -Verb RunAs"
+    if errorlevel 1 (
+        echo [WARN] Elevation cancelled. Continuing in standard user mode...
+        echo.
+    ) else (
+        echo [OK] Elevated window launched.
+        timeout /t 3 >nul
+        exit /b 0
+    )
+)
+
 :: 1. Check Python installation
 where python >nul 2>&1
 if %errorlevel% neq 0 (

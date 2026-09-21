@@ -4,12 +4,11 @@
 
 ## 🔑 动态连接凭据与访问端点
 
-- **HTTP / REST API 端点**: `http://169.254.0.21:18888`
-- **Model Context Protocol (MCP)**: `http://169.254.0.21:18888/mcp`
-- **SSH 终端连接**: `ssh ai-agent@169.254.0.21 -p 2222`
-- **SSH 登录密码**: `bJ_NXePnLMKRTd-n`
-- **API Bearer Token**: `bJ_NXePnLMKRTd-nv5GCzPlelyUfhXz4SRQPUMlOtzE`
-- **一键连接票据 (Ticket)**: `shh://eyJ2ZXJzaW9uIjoiMS4wLjAiLCJzZXNzaW9uX2lkIjoic2hoLTI0ZGI3YzE5IiwidG9rZW4iOiJiSl9OWGVQbkxNS1JUZC1udjVHQ3pQbGVseVVmaFh6NFNSUVBVTWxPdHpFIiwicHVibGljX2lwdjQiOm51bGwsInB1YmxpY19pcHY2IjpudWxsLCJsYW5faXAiOiIxNjkuMjU0LjAuMjEiLCJwb3J0IjoxODg4OCwic3NoX3BvcnQiOjIyMjIsInNzaF91c2VybmFtZSI6ImFpLWFnZW50Iiwic3NoX3Bhc3N3b3JkIjoiYkpfTlhlUG5MTUtSVGQtbiIsImh0dHBfYmFzZV91cmwiOiJodHRwOi8vMTY5LjI1NC4wLjIxOjE4ODg4IiwibWNwX3VybCI6Imh0dHA6Ly8xNjkuMjU0LjAuMjE6MTg4ODgvbWNwIiwidXBucF9lbmFibGVkIjpmYWxzZSwicmVsYXhlZF9tb2RlIjp0cnVlLCJwdWJsaXNoZWRfYXQiOjE3ODY0MTgwNTZ9`
+- **HTTP / REST API 端点**: `http://127.0.0.1:18888`
+- **Model Context Protocol (MCP)**: `http://127.0.0.1:18888/mcp`
+- **SSH 终端连接**: `ssh ai-agent@127.0.0.1 -p 2222`
+- **SSH 登录密码**: `i3dtxYWBSEYPV0_U`
+- **API Bearer Token**: `i3dtxYWBSEYPV0_UgSwvQT07xVZppUUuvPmIfeVWA8k`
 
 ---
 
@@ -77,6 +76,10 @@
 - **功能**: Get information about display resolution, open application windows, and UI element positions.
 - **分类**: `vision`
 
+### `show_popup`
+- **功能**: Display a native Windows popup dialog / message box on the user's screen.
+- **分类**: `system`
+
 ### `get_system_info`
 - **功能**: Retrieve comprehensive system hardware, OS version, CPU, RAM, disk space, and network info.
 - **分类**: `system`
@@ -84,6 +87,22 @@
 ### `get_env_vars`
 - **功能**: Get system environment variables or query a specific environment variable.
 - **分类**: `system`
+
+### `get_privilege_info`
+- **功能**: Check whether the local SHH agent currently runs with Windows Administrator (UAC elevated) rights, and which operations are available without a UAC prompt.
+- **分类**: `admin`
+
+### `run_admin_command`
+- **功能**: Execute a shell command with Windows Administrator rights (e.g. netsh, sc, reg, mklink, driver/service management, writing to C:\Program Files, killing system processes). If SHH was started with start_shh_admin.bat it runs silently; otherwise ONE UAC prompt appears on the user's screen and must be approved.
+- **分类**: `admin`
+
+### `manage_firewall`
+- **功能**: Add / delete / list Windows Firewall inbound rules with administrator rights (allow a local port so other machines or tunnels can reach it).
+- **分类**: `admin`
+
+### `manage_port_forward`
+- **功能**: Create / delete / list OS-level TCP port forwarding rules (netsh interface portproxy) so traffic arriving on a local port is forwarded to another local or LAN host:port. Requires Administrator.
+- **分类**: `admin`
 
 ---
 

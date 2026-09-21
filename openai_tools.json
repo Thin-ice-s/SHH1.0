@@ -389,6 +389,30 @@
   {
     "type": "function",
     "function": {
+      "name": "show_popup",
+      "description": "Display a native Windows popup dialog / message box on the user's screen.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "default": "AI Notification",
+            "description": "Title of the popup window."
+          },
+          "message": {
+            "type": "string",
+            "description": "Message text to display in the popup."
+          }
+        },
+        "required": [
+          "message"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "get_system_info",
       "description": "Retrieve comprehensive system hardware, OS version, CPU, RAM, disk space, and network info.",
       "parameters": {
@@ -410,6 +434,137 @@
             "description": "Specific environment variable name to query (e.g. 'PATH', 'PYTHONPATH', 'USER'). Omit for all safe variables."
           }
         }
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_privilege_info",
+      "description": "Check whether the local SHH agent currently runs with Windows Administrator (UAC elevated) rights, and which operations are available without a UAC prompt.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "run_admin_command",
+      "description": "Execute a shell command with Windows Administrator rights (e.g. netsh, sc, reg, mklink, driver/service management, writing to C:\\Program Files, killing system processes). If SHH was started with start_shh_admin.bat it runs silently; otherwise ONE UAC prompt appears on the user's screen and must be approved.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "Command line to execute with administrator privileges."
+          },
+          "shell": {
+            "type": "string",
+            "enum": [
+              "cmd",
+              "powershell"
+            ],
+            "default": "cmd",
+            "description": "Which elevated shell to use."
+          },
+          "timeout": {
+            "type": "integer",
+            "default": 120,
+            "description": "Maximum seconds to wait for the command to finish."
+          },
+          "cwd": {
+            "type": "string",
+            "description": "Optional working directory for the elevated command."
+          }
+        },
+        "required": [
+          "command"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "manage_firewall",
+      "description": "Add / delete / list Windows Firewall inbound rules with administrator rights (allow a local port so other machines or tunnels can reach it).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "delete",
+              "list"
+            ],
+            "default": "list",
+            "description": "Firewall operation to perform."
+          },
+          "name": {
+            "type": "string",
+            "description": "Rule name (used for add/delete, and as the list filter keyword)."
+          },
+          "port": {
+            "type": "integer",
+            "description": "Local TCP port to allow (required for action=add)."
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "TCP",
+              "UDP"
+            ],
+            "default": "TCP"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "manage_port_forward",
+      "description": "Create / delete / list OS-level TCP port forwarding rules (netsh interface portproxy) so traffic arriving on a local port is forwarded to another local or LAN host:port. Requires Administrator.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "delete",
+              "list"
+            ],
+            "default": "list"
+          },
+          "listen_port": {
+            "type": "integer",
+            "description": "Local port to listen on."
+          },
+          "connect_host": {
+            "type": "string",
+            "default": "127.0.0.1",
+            "description": "Target host to forward traffic to (IP or hostname)."
+          },
+          "connect_port": {
+            "type": "integer",
+            "description": "Target port (defaults to listen_port)."
+          },
+          "listen_address": {
+            "type": "string",
+            "default": "0.0.0.0",
+            "description": "Local address to bind the listener to."
+          }
+        },
+        "required": [
+          "action"
+        ]
       }
     }
   }

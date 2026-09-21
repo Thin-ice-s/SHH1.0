@@ -24,6 +24,7 @@ from shh.servers.http_server import create_app
 from shh.servers.mcp_server import run_mcp_stdio
 from shh.servers.ssh_server import SSHServerRunner
 from shh.tools import registry
+from shh.utils import admin
 from shh.utils.logger import Colors, Logger
 
 
@@ -32,7 +33,19 @@ def start_server_command(args):
 
     # Load configuration
     config = SHHConfig.load(args.config) if args.config else SHHConfig()
-    
+
+    # ------------------------------------------------------------------
+    # Step 0: Privilege / Administrator mode handling
+    # ------------------------------------------------------------------
+    if getattr(args, "admin", False) and not admin.is_admin():
+        Logger.step("Administrator mode requested - relaunching SHH with UAC elevation...")
+        if admin.elevate_self(py_args=[a for a in sys.argv[1:] if a not in ("--admin",)] or ["start"]):
+            Logger.info("This un-elevated window can be closed. Continue in the Administrator window.")
+            raise SystemExit(0)
+        Logger.warning("Elevation cancelled. Continuing in standard user mode.")
+    else:
+        admin.print_admin_status()
+
     if args.port:
         config.port = args.port
     if args.ssh_port:
@@ -49,6 +62,31 @@ def start_server_command(args):
         config.shell_type = args.shell
     if args.strict:
         config.relaxed_security = False
+
+    # ------------------------------------------------------------------
+    # Step 0.5: Auto-open Windows Firewall (only possible as Administrator)
+    # ------------------------------------------------------------------
+    if getattr(args, "no_firewall", False):
+        Logger.info("Firewall auto-configuration disabled by --no-firewall.")
+    elif admin.is_windows() and admin.is_admin():
+        Logger.step("Administrator mode: opening Windows Firewall inbound ports...")
+        try:
+            fw_results = admin.ensure_firewall_rules(
+                port=config.port,
+                ssh_port=config.ssh_port if config.enable_ssh else None,
+            )
+            for fw in fw_results:
+                if fw.get("success") and fw.get("exit_code", 1) == 0:
+                    Logger.success("Firewall rule ready for TCP port %s (inbound allow)" % fw.get("port"))
+                else:
+                    Logger.warning(
+                        "Firewall rule for port %s not confirmed: %s"
+                        % (fw.get("port"), (fw.get("stderr") or fw.get("error") or "").strip()[:160])
+                    )
+        except Exception as exc:
+            Logger.warning("Firewall auto-configuration skipped: %s" % exc)
+    elif admin.is_windows():
+        Logger.info("Not running as Administrator: skipping firewall rule creation (run start_shh_admin.bat).")
 
     Logger.step("Detecting Network Environment & Dynamic Public IP (Step 1/4)...")
     ip_info = IPDetector.detect_all(local_port=config.port)
@@ -89,7 +127,7 @@ def start_server_command(args):
     effective_ip = pub_v6 if pub_v6 else (pub_v4 if pub_v4 else (stun_info['external_ip'] if stun_info else lan_ip))
     
     metadata = {
-        "version": "1.0.0",
+        "version": "1.0.1",
         "session_id": config.session_id,
         "token": config.token,
         "public_ipv4": pub_v4 or (stun_info['external_ip'] if stun_info else None),
@@ -107,13 +145,47 @@ def start_server_command(args):
 
     # Step 3: Integrated Tunnel & Public Rendezvous
     Logger.step("Starting Integrated Public Tunnel & Generating AI Message (Step 3/4)...")
-    
+
     # Auto-start integrated tunnel in background
     tunnel_url = AutoTunnelManager.start_tunnel(local_port=config.port)
     effective_url = tunnel_url or f"http://{effective_ip}:{config.port}"
+    if tunnel_url:
+        Logger.success(f"Integrated Tunnel URL: {tunnel_url}")
+    else:
+        Logger.warning("No public tunnel URL yet. Falling back to direct IP / LAN address.")
 
     metadata["http_base_url"] = effective_url
     metadata["tunnel_url"] = tunnel_url
+
+    # Publish rendezvous payload to the zero-server public board (dpaste / gist) -> board_url + ticket
+    board_url = None
+    ticket = ""
+    if config.public_board_provider and config.public_board_provider != "none":
+        Logger.step("Publishing connection ticket to public board (%s)..." % config.public_board_provider)
+        try:
+            rv = RendezvousManager.publish(
+                payload=metadata.copy(),
+                provider=config.public_board_provider,
+                github_token=config.github_gist_token,
+                custom_url=config.custom_board_url,
+            )
+            board_url = rv.board_url
+            ticket = rv.ticket or ""
+            if board_url:
+                Logger.success("Public Board URL: %s" % board_url)
+            else:
+                Logger.warning("Public board unavailable (network blocked?). Using offline Ticket only.")
+        except Exception as exc:
+            Logger.warning("Public board publish failed: %s" % exc)
+    else:
+        Logger.info("Public board disabled (--board none). Using offline Ticket only.")
+
+    if not ticket:
+        try:
+            from shh.utils.crypto import pack_connection_ticket
+            ticket = pack_connection_ticket(metadata)
+        except Exception:
+            ticket = ""
 
     # Generate single AI message
     single_ai_msg = generate_ai_single_message(effective_url, config)
@@ -155,15 +227,21 @@ def start_server_command(args):
         ssh_runner.start()
 
     # Print summary box
-    print(f"\n+============================================================================+")
-    print(f"|                       SHH 1.0 Server Ready (ONLINE)                        |")
-    print(f"+============================================================================+")
-    print(f"|  Local Dashboard:         http://localhost:{config.port}")
+    def _row(label, value):
+        line = "|  %-24s %s" % (label, value)
+        return line + " " * max(0, 77 - len(line)) + "|"
+
+    print("\n+============================================================================+")
+    print("|                       SHH 1.0 Server Ready (ONLINE)                        |")
+    print("+============================================================================+")
+    print(_row(f"Local Dashboard:", f"http://localhost:{config.port}"))
     if tunnel_url:
-        print(f"|  Integrated Tunnel URL:   {tunnel_url}")
-    print(f"|  Access Token:            {config.token}")
-    print(f"|  One-Click AI Message:    SEND_TO_AI.md (Already in your clipboard!)")
-    print(f"+============================================================================+\n")
+        print(_row("Integrated Tunnel URL:", tunnel_url))
+    priv_text = "ADMINISTRATOR (elevated)" if admin.is_admin() else "Standard user"
+    print(_row("Privilege Mode:", priv_text))
+    print(_row("Access Token:", config.token))
+    print(_row("One-Click AI Message:", "SEND_TO_AI.md (already copied to clipboard)"))
+    print("+============================================================================+\n")
     print(f"==============================================================================")
     print(f" [COPY THE MESSAGE BELOW AND PASTE DIRECTLY INTO YOUR CLOUD AI CHAT]")
     print(f"==============================================================================")
@@ -232,6 +310,58 @@ def test_command(args):
     asyncio.run(run_tests())
 
 
+def admin_command(args):
+    """Handle `python -m shh admin ...` (administrator utilities)."""
+    Logger.banner()
+    action = getattr(args, "action", "status") or "status"
+
+    if action == "status":
+        status = admin.print_admin_status()
+        print("\n--- Privilege detail -------------------------------------------------")
+        for key in ("is_windows", "is_admin", "user", "computer", "integrity_level",
+                    "python_executable", "python_version", "recommended_launcher"):
+            if key in status:
+                print("  %-22s : %s" % (key, status[key]))
+        print("  %-22s : %s" % ("elevation_hint", status.get("elevation_hint", "")))
+        print("----------------------------------------------------------------------\n")
+        return
+
+    if action == "elevate":
+        if admin.is_admin():
+            Logger.success("Already running as Administrator.")
+            return
+        ok = admin.elevate_self(py_args=["start", "--admin"])
+        Logger.success("Elevated window launched." if ok else "Elevation cancelled.")
+        return
+
+    if action == "firewall-allow":
+        res = admin.add_firewall_rule(args.name, args.port)
+        if res.get("success") and res.get("exit_code", 1) == 0:
+            Logger.success("Firewall rule '%s' allows inbound TCP %s" % (args.name, args.port))
+        else:
+            Logger.error("Failed: %s" % (res.get("stderr") or res.get("error")))
+        if args.ssh_port:
+            admin.add_firewall_rule("SHH 1.0 Bridge SSH (port %d)" % args.ssh_port, args.ssh_port)
+        return
+
+    if action == "firewall-list":
+        res = admin.list_firewall_rules(keyword=args.name.split()[0] if args.name else "SHH")
+        for rule in res.get("matching_rules", []):
+            print(rule)
+            print("-" * 70)
+        return
+
+    if action == "firewall-remove":
+        res = admin.remove_firewall_rule(args.name)
+        Logger.success("Rule removal requested." if res.get("success") else "Failed: %s" % res.get("error"))
+        return
+
+    if action == "port-forward-list":
+        res = admin.manage_port_forward("list", listen_port=0)
+        print(res.get("stdout") or res.get("error") or "")
+        return
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="shh",
@@ -250,6 +380,22 @@ def main():
     p_start.add_argument("--shell", choices=["powershell", "cmd", "bash", "wsl", "auto"], default="auto", help="Default shell")
     p_start.add_argument("--strict", action="store_true", help="Enable strict permission check instead of relaxed mode")
     p_start.add_argument("--config", type=str, help="Path to custom config JSON")
+    p_start.add_argument("--admin", action="store_true", help="Relaunch SHH with Windows Administrator rights (UAC prompt)")
+    p_start.add_argument("--no-firewall", action="store_true", help="Skip automatic Windows Firewall inbound rule creation")
+
+    # Admin command
+    p_admin = subparsers.add_parser("admin", help="Administrator tools: privilege status, elevation, firewall, port forwarding")
+    p_admin.add_argument(
+        "--action", "-a",
+        choices=["status", "elevate", "firewall-allow", "firewall-list", "firewall-remove", "port-forward-list"],
+        default="status",
+        help="Which administrator action to run (default: status)"
+    )
+    p_admin.add_argument("--port", type=int, default=18888, help="Port for firewall-allow / port forwarding")
+    p_admin.add_argument("--ssh-port", type=int, default=2222, help="SSH port for firewall-allow")
+    p_admin.add_argument("--name", type=str, default="SHH 1.0 Bridge HTTP", help="Firewall rule name")
+    p_admin.add_argument("--connect-host", type=str, default="127.0.0.1", help="Target host for port forwarding")
+    p_admin.add_argument("--connect-port", type=int, help="Target port for port forwarding")
 
     # Export command
     p_export = subparsers.add_parser("export", help="Export tool schemas, manifests, and system prompts")
@@ -267,6 +413,8 @@ def main():
         if args.command is None:
             args = parser.parse_args(["start"])
         start_server_command(args)
+    elif args.command == "admin":
+        admin_command(args)
     elif args.command == "export":
         export_command(args)
     elif args.command == "test":

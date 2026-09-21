@@ -32,6 +32,7 @@
 3. **SSH + MCP 双协议支持**：既支持标准 SSH/SFTP 终端接入，又原生支持现代 AI **Model Context Protocol (MCP)** 和 **REST / WebSocket API**。
 4. **多模态屏幕视觉识别**：内置高清桌面/窗口截屏与压缩转义组件，让大模型直接“看到” Windows 桌面、UI 元素与报错弹窗。
 5. **完整工具大纲与系统提示词**：自动生成标准化 `TOOLS_MANIFEST.md`、`openai_tools.json`、`anthropic_tools.json` 与一键复制的 `AI_SYSTEM_PROMPT.md`。
+6. **管理员模式 (Administrator / UAC)**：`start_shh_admin.bat` 一键提权，自动放行防火墙端口、支持 `netsh portproxy` 端口转发、静默执行管理员命令与系统级进程管理。
 
 ---
 
@@ -94,6 +95,61 @@
   python -m shh start
   ```
 
+---
+
+## 🛡️ 管理员模式启动 (Administrator / UAC)
+
+需要访问 `netsh`、防火墙规则、`portproxy` 端口转发、服务管理、驱动级操作、结束系统进程、
+写入 `C:\Program Files` 等受限区域时，请用**管理员模式**启动 SHH。
+
+### 三种进入管理员模式的方式
+
+| 方式 | 操作 | 说明 |
+| :--- | :--- | :--- |
+| **① 双击（推荐）** | 双击 **`start_shh_admin.bat`** | 自动检测权限 → 弹一次 UAC → 在**新的管理员窗口**中启动 SHH |
+| **② 普通启动脚本带参数** | `start_shh.bat admin` | 同上，自动提权重启 |
+| **③ 命令行 / PowerShell** | `python -m shh start --admin`<br>`.\start_shh.ps1 -Admin` | 由 Python / PowerShell 侧发起提权 |
+| **④ 永久免右键** | `powershell -ExecutionPolicy Bypass -File .\create_admin_shortcut.ps1` | 在桌面创建带“以管理员身份运行”标记的快捷方式，以后双击即管理员启动 |
+
+> ⚠️ UAC 弹窗是 Windows 的强制安全机制，**无法绕过**（除非把 UAC 滑块调到最低）。
+> 你只需要点一次“是”，提权后的 SHH 进程在整个运行期间都拥有管理员权限。
+
+### 管理员模式自动带来什么
+
+启动为管理员后，SHH 会自动完成这些原本会失败或受限的工作：
+
+1. **自动放行 Windows 防火墙**：为 HTTP 端口（默认 18888）与 SSH 端口（默认 2222）添加入站 TCP 允许规则，
+   让外部隧道/局域网设备能真正连进来（`netsh advfirewall firewall add rule`）。
+   不想自动改防火墙时加 `--no-firewall`。
+2. **AI 可静默执行管理员命令**：工具 `run_admin_command` 不再需要每次弹 UAC。
+3. **OS 级端口转发生效**：`manage_port_forward`（`netsh interface portproxy`）可用，
+   把外部端口转发到本机或局域网其它主机，并自动拉起 IP Helper 服务。
+4. **进程 / 服务 / 文件权限**：可以结束系统进程、操作服务、读写受保护目录。
+
+### 相关命令速查
+
+```bash
+python -m shh admin --action status                 # 查看当前权限等级与能力
+python -m shh admin --action elevate                # 请求提权并重启 SHH
+python -m shh admin --action firewall-allow --port 18888 --ssh-port 2222
+python -m shh admin --action firewall-list
+python -m shh admin --action firewall-remove --name "SHH 1.0 Bridge HTTP (port 18888)"
+python -m shh admin --action port-forward-list
+```
+
+### 云端 AI 侧调用示例（管理员能力）
+
+```python
+win.is_admin()                                   # {"is_admin": True, "elevation_hint": ...}
+win.admin_run('netsh advfirewall firewall show rule name=all')   # 管理员命令
+win.firewall("add", name="MyDevServer 3000", port=3000)          # 放行端口
+win.port_forward("add", listen_port=8080, connect_host="192.168.1.50", connect_port=80)
+win.port_forward("list")
+```
+
+> 若 SHH 是以**普通用户**启动的，调用上述工具时 Windows 会弹出一次 UAC 让用户确认；
+> 以 `start_shh_admin.bat` 启动则全程静默。
+
 ### 2. 启动输出概览
 
 启动后控制台将显示精美的状态面板：
@@ -106,6 +162,7 @@
 ║  🌐 公共告示板 URL:      https://dpaste.org/xxxx.txt                      ║
 ║  🎫 一键连接票据:        shh://eyJzZXNzaW9uX2lkIjoi...                    ║
 ║  🔑 访问 Token:          0j_fK3m...                                       ║
+║  🛡️  权限模式:            ADMINISTRATOR (elevated) / Standard user        ║
 ║  🔒 SSH 终端连接:        ssh ai-agent@123.45.67.89 -p 2222                ║
 ║  🤖 MCP 协议端点:        http://123.45.67.89:18888/mcp                    ║
 ║  📑 工具大纲文件:        TOOLS_MANIFEST.md / AI_SYSTEM_PROMPT.md          ║

@@ -21,8 +21,13 @@
 | `network` | **`proxy_http_request`** | Make an HTTP request from inside the local machine to a local dev server (e.g. http://localhost:3000/api) and return the response. |
 | `vision` | **`capture_screen`** | Capture the desktop screen, compress/downscale to save tokens, and return as base64 image for multimodal AI vision models (GPT-4o, Claude 3.5 Sonnet, Gemini). |
 | `vision` | **`get_screen_info`** | Get information about display resolution, open application windows, and UI element positions. |
+| `system` | **`show_popup`** | Display a native Windows popup dialog / message box on the user's screen. |
 | `system` | **`get_system_info`** | Retrieve comprehensive system hardware, OS version, CPU, RAM, disk space, and network info. |
 | `system` | **`get_env_vars`** | Get system environment variables or query a specific environment variable. |
+| `admin` | **`get_privilege_info`** | Check whether the local SHH agent currently runs with Windows Administrator (UAC elevated) rights, and which operations are available without a UAC prompt. |
+| `admin` | **`run_admin_command`** | Execute a shell command with Windows Administrator rights (e.g. netsh, sc, reg, mklink, driver/service management, writing to C:\Program Files, killing system processes). If SHH was started with start_shh_admin.bat it runs silently; otherwise ONE UAC prompt appears on the user's screen and must be approved. |
+| `admin` | **`manage_firewall`** | Add / delete / list Windows Firewall inbound rules with administrator rights (allow a local port so other machines or tunnels can reach it). |
+| `admin` | **`manage_port_forward`** | Create / delete / list OS-level TCP port forwarding rules (netsh interface portproxy) so traffic arriving on a local port is forwarded to another local or LAN host:port. Requires Administrator. |
 
 ---
 
@@ -587,6 +592,41 @@
 
 ---
 
+### `show_popup`
+**功能描述**: Display a native Windows popup dialog / message box on the user's screen.  
+**所属分类**: `system`  
+
+**参数定义 (JSON Schema)**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "default": "AI Notification",
+      "description": "Title of the popup window."
+    },
+    "message": {
+      "type": "string",
+      "description": "Message text to display in the popup."
+    }
+  },
+  "required": [
+    "message"
+  ]
+}
+```
+
+**调用示例 (HTTP POST /api/tools/show_popup)**:
+```json
+{
+  "title": "AI Notification",
+  "message": "example_value"
+}
+```
+
+---
+
 ### `get_system_info`
 **功能描述**: Retrieve comprehensive system hardware, OS version, CPU, RAM, disk space, and network info.  
 **所属分类**: `system`  
@@ -627,6 +667,185 @@
 ```json
 {
   "key": "example_value"
+}
+```
+
+---
+
+### `get_privilege_info`
+**功能描述**: Check whether the local SHH agent currently runs with Windows Administrator (UAC elevated) rights, and which operations are available without a UAC prompt.  
+**所属分类**: `admin`  
+
+**参数定义 (JSON Schema)**:
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+**调用示例 (HTTP POST /api/tools/get_privilege_info)**:
+```json
+{}
+```
+
+---
+
+### `run_admin_command`
+**功能描述**: Execute a shell command with Windows Administrator rights (e.g. netsh, sc, reg, mklink, driver/service management, writing to C:\Program Files, killing system processes). If SHH was started with start_shh_admin.bat it runs silently; otherwise ONE UAC prompt appears on the user's screen and must be approved.  
+**所属分类**: `admin`  
+
+**参数定义 (JSON Schema)**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "command": {
+      "type": "string",
+      "description": "Command line to execute with administrator privileges."
+    },
+    "shell": {
+      "type": "string",
+      "enum": [
+        "cmd",
+        "powershell"
+      ],
+      "default": "cmd",
+      "description": "Which elevated shell to use."
+    },
+    "timeout": {
+      "type": "integer",
+      "default": 120,
+      "description": "Maximum seconds to wait for the command to finish."
+    },
+    "cwd": {
+      "type": "string",
+      "description": "Optional working directory for the elevated command."
+    }
+  },
+  "required": [
+    "command"
+  ]
+}
+```
+
+**调用示例 (HTTP POST /api/tools/run_admin_command)**:
+```json
+{
+  "command": "git status",
+  "shell": "cmd",
+  "timeout": 120,
+  "cwd": "example_value"
+}
+```
+
+---
+
+### `manage_firewall`
+**功能描述**: Add / delete / list Windows Firewall inbound rules with administrator rights (allow a local port so other machines or tunnels can reach it).  
+**所属分类**: `admin`  
+
+**参数定义 (JSON Schema)**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "add",
+        "delete",
+        "list"
+      ],
+      "default": "list",
+      "description": "Firewall operation to perform."
+    },
+    "name": {
+      "type": "string",
+      "description": "Rule name (used for add/delete, and as the list filter keyword)."
+    },
+    "port": {
+      "type": "integer",
+      "description": "Local TCP port to allow (required for action=add)."
+    },
+    "protocol": {
+      "type": "string",
+      "enum": [
+        "TCP",
+        "UDP"
+      ],
+      "default": "TCP"
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+**调用示例 (HTTP POST /api/tools/manage_firewall)**:
+```json
+{
+  "action": "list",
+  "name": "example_value",
+  "port": 10,
+  "protocol": "TCP"
+}
+```
+
+---
+
+### `manage_port_forward`
+**功能描述**: Create / delete / list OS-level TCP port forwarding rules (netsh interface portproxy) so traffic arriving on a local port is forwarded to another local or LAN host:port. Requires Administrator.  
+**所属分类**: `admin`  
+
+**参数定义 (JSON Schema)**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "add",
+        "delete",
+        "list"
+      ],
+      "default": "list"
+    },
+    "listen_port": {
+      "type": "integer",
+      "description": "Local port to listen on."
+    },
+    "connect_host": {
+      "type": "string",
+      "default": "127.0.0.1",
+      "description": "Target host to forward traffic to (IP or hostname)."
+    },
+    "connect_port": {
+      "type": "integer",
+      "description": "Target port (defaults to listen_port)."
+    },
+    "listen_address": {
+      "type": "string",
+      "default": "0.0.0.0",
+      "description": "Local address to bind the listener to."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+**调用示例 (HTTP POST /api/tools/manage_port_forward)**:
+```json
+{
+  "action": "list",
+  "listen_port": 10,
+  "connect_host": "127.0.0.1",
+  "connect_port": 10,
+  "listen_address": "0.0.0.0"
 }
 ```
 

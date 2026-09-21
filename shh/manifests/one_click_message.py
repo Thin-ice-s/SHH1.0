@@ -3,7 +3,9 @@ SHH 1.0 - One-Click AI Message Generator
 Generates the single-message prompt with embedded Python controller and live tunnel URL.
 """
 
+import os
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -31,8 +33,12 @@ class RemoteWindows:
         headers = {{"User-Agent": "SHH-AI/1.0", "Content-Type": "application/json", "Authorization": f"Bearer {{self.token}}"}}
         body = json.dumps(payload or {{}}).encode("utf-8")
         req = urllib.request.Request(url, data=body, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=60.0, context=self._ctx) as resp:
+        with urllib.request.urlopen(req, timeout=120.0, context=self._ctx) as resp:
             return json.loads(resp.read().decode("utf-8"))
+
+    def tools(self):
+        """列出本机可用工具"""
+        return self._call("/api/tools")
 
     def exec(self, cmd, cwd=None):
         """在 Windows 执行命令 (PowerShell / CMD)"""
@@ -64,6 +70,24 @@ class RemoteWindows:
         """在 Windows 桌面弹出提示窗口"""
         return self._call("/api/tools/show_popup", {{"message": message, "title": title}}).get("success", False)
 
+    # ---------- 管理员 (Administrator) 能力 ----------
+    def is_admin(self):
+        """查询本机 SHH 是否以管理员权限运行"""
+        return self._call("/api/tools/get_privilege_info")
+
+    def admin_run(self, cmd, shell="cmd", timeout=120):
+        """以管理员权限执行命令 (SHH 为管理员时静默执行，否则弹一次 UAC)"""
+        res = self._call("/api/tools/run_admin_command", {{"command": cmd, "shell": shell, "timeout": timeout}})
+        return res.get("stdout") or res.get("stderr") or res.get("error")
+
+    def firewall(self, action="list", name="SHH 1.0 Rule", port=None):
+        """管理 Windows 防火墙入站规则 (add / delete / list)"""
+        return self._call("/api/tools/manage_firewall", {{"action": action, "name": name, "port": port}})
+
+    def port_forward(self, action="list", listen_port=None, connect_host="127.0.0.1", connect_port=None):
+        """管理 netsh 端口转发规则 (add / delete / list)"""
+        return self._call("/api/tools/manage_port_forward", {{"action": action, "listen_port": listen_port, "connect_host": connect_host, "connect_port": connect_port}})
+
     def list_ports(self):
         """列出本地监听的端口"""
         return self._call("/api/tools/list_open_ports").get("open_ports", [])
@@ -76,26 +100,53 @@ class RemoteWindows:
         """获取系统硬件与驱动器列表"""
         return self._call("/api/tools/get_system_info")
 
-# 🔗 1. 连接我的电脑
+# 🔗 1. 连接我的电脑 (URL 已内置，含动态隧道地址)
 win = RemoteWindows("{tunnel_url}", "{config.token}")
 
 # 💻 2. 测试运行 (查看系统信息与目录)
 print("✔ 连接成功！系统信息:", win.get_system_info().get("os"))
+print("🔐 权限状态:", win.is_admin().get("elevation_hint"))
 print(win.exec("dir"))
 ```
+
+**可用工具调用方式**：`win.exec()` 执行命令、`win.read_file()` / `win.write_file()` 读写文件、`win.file_tree()` 看目录、`win.screenshot()` 截图、`win.show_popup()` 弹窗、`win.admin_run()` 管理员命令、`win.firewall()` / `win.port_forward()` 端口与防火墙管理。需要完整工具列表时调用 `win.tools()` 或 `win._call("/api/tools")`。
+
+请在连接成功后：先确认连接正常，然后等待我的下一步指令。若连接失败，请把完整报错贴给我。
 '''
     return code_template.strip()
 
 
 def copy_to_windows_clipboard(text: str) -> bool:
-    """Copy text to Windows clipboard using PowerShell."""
-    if is_windows():
-        try:
-            # Escape single quotes
-            escaped = text.replace("'", "''")
-            ps_cmd = f"Set-Clipboard -Value @'\n{text}\n'@"
-            subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps_cmd], timeout=5)
-            return True
-        except Exception:
-            pass
-    return False
+    """
+    Copy arbitrary text to the Windows clipboard using PowerShell.
+    Uses a temp file + Get-Content -Raw so any quotes / newlines / emoji are safe.
+    """
+    if not is_windows():
+        return False
+
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(prefix="shh_clip_", suffix=".txt")
+        with os.fdopen(fd, "w", encoding="utf-8", errors="replace") as f:
+            f.write(text)
+
+        ps_cmd = (
+            "[Console]::InputEncoding = [System.Text.Encoding]::UTF8; "
+            "Get-Content -LiteralPath '%s' -Raw -Encoding UTF8 | Set-Clipboard"
+        ) % tmp_path.replace("'", "''")
+
+        proc = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=25,
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
+    finally:
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
