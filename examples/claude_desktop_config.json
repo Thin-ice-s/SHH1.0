@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "shh-windows-bridge": {
+      "command": "python",
+      "args": ["-m", "shh", "mcp"],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}

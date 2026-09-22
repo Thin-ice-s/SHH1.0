@@ -1,0 +1,629 @@
+[
+  {
+    "name": "shell_exec",
+    "description": "Execute a command in PowerShell, CMD, Bash, or WSL on the local Windows computer and return stdout, stderr, exit code.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "The command string to execute (e.g. 'dir', 'npm test', 'git status', 'python main.py')."
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory to execute command in. Defaults to current workspace."
+        },
+        "shell": {
+          "type": "string",
+          "enum": [
+            "powershell",
+            "cmd",
+            "bash",
+            "wsl",
+            "auto"
+          ],
+          "default": "auto",
+          "description": "Shell type to execute in. 'powershell' (PowerShell), 'cmd' (Windows CMD), 'bash' (Git Bash / Linux bash), 'wsl' (WSL2), or 'auto'."
+        },
+        "timeout": {
+          "type": "integer",
+          "default": 60,
+          "description": "Maximum execution time in seconds before terminating the process (default 60s)."
+        }
+      },
+      "required": [
+        "command"
+      ]
+    }
+  },
+  {
+    "name": "file_read",
+    "description": "Read file content from local disk. Supports text with line numbers/ranges or base64 binary encoding.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to file (absolute or relative to workspace)."
+        },
+        "start_line": {
+          "type": "integer",
+          "description": "1-based starting line number (optional, for pagination)."
+        },
+        "max_lines": {
+          "type": "integer",
+          "description": "Maximum number of lines to return (optional)."
+        },
+        "encoding": {
+          "type": "string",
+          "default": "utf-8",
+          "description": "File encoding ('utf-8', 'gbk', 'binary'). If 'binary', returns base64 string."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "file_write",
+    "description": "Create or overwrite a file with given text or base64 binary content. Creates parent folders automatically.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to file (absolute or relative to workspace)."
+        },
+        "content": {
+          "type": "string",
+          "description": "Text content to write to the file."
+        },
+        "content_base64": {
+          "type": "string",
+          "description": "Optional base64 binary data if writing binary file."
+        },
+        "encoding": {
+          "type": "string",
+          "default": "utf-8",
+          "description": "Text encoding to write (default: utf-8)."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "file_edit",
+    "description": "Search and replace a specific text block within a file (exact or whitespace-tolerant match).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Target file path."
+        },
+        "old_text": {
+          "type": "string",
+          "description": "Text snippet to find and replace."
+        },
+        "new_text": {
+          "type": "string",
+          "description": "Replacement text snippet."
+        }
+      },
+      "required": [
+        "path",
+        "old_text",
+        "new_text"
+      ]
+    }
+  },
+  {
+    "name": "file_list",
+    "description": "List files and directories inside a path with size, modified timestamp, and type.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Directory path (defaults to current workspace)."
+        },
+        "show_hidden": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to include hidden files (starting with .)."
+        }
+      }
+    }
+  },
+  {
+    "name": "file_tree",
+    "description": "Generate a formatted visual tree structure of a directory with depth limit and ignored patterns.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Root directory path."
+        },
+        "max_depth": {
+          "type": "integer",
+          "default": 3,
+          "description": "Maximum directory traversal depth (default: 3)."
+        }
+      }
+    }
+  },
+  {
+    "name": "file_search",
+    "description": "Search for files by filename pattern (glob) or search file contents with regex grep.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Directory to search within."
+        },
+        "filename_pattern": {
+          "type": "string",
+          "description": "Glob pattern for filename (e.g. '*.py', '*.json', 'config.*')."
+        },
+        "content_regex": {
+          "type": "string",
+          "description": "Regex pattern to grep file contents for."
+        },
+        "max_results": {
+          "type": "integer",
+          "default": 50,
+          "description": "Maximum number of search results to return."
+        }
+      }
+    }
+  },
+  {
+    "name": "list_processes",
+    "description": "List active system processes with PID, name, CPU %, memory usage, and command line.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name_filter": {
+          "type": "string",
+          "description": "Optional filter string to match against process name or cmdline (e.g. 'node', 'python', 'chrome')."
+        },
+        "limit": {
+          "type": "integer",
+          "default": 30,
+          "description": "Maximum number of processes to return (sorted by memory usage)."
+        }
+      }
+    }
+  },
+  {
+    "name": "kill_process",
+    "description": "Terminate a running process by PID or process name.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "description": "Process ID to terminate."
+        },
+        "name": {
+          "type": "string",
+          "description": "Process name to terminate all matching instances (e.g. 'node.exe')."
+        },
+        "force": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to forcefully kill the process (SIGKILL / taskkill /F)."
+        }
+      }
+    }
+  },
+  {
+    "name": "start_process",
+    "description": "Start a persistent background process (e.g. dev server, npm run dev, python app.py) and return a job_id to monitor.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Command to run in background."
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for the process."
+        }
+      },
+      "required": [
+        "command"
+      ]
+    }
+  },
+  {
+    "name": "get_process_logs",
+    "description": "Get status or active background jobs list.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "description": "Job ID (e.g. 'job-001'). Omit to list all background jobs."
+        }
+      }
+    }
+  },
+  {
+    "name": "list_open_ports",
+    "description": "List all active TCP listening ports and the processes bound to them on the local computer.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "proxy_http_request",
+    "description": "Make an HTTP request from inside the local machine to a local dev server (e.g. http://localhost:3000/api) and return the response.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Target URL (e.g. 'http://localhost:3000/api/users', 'http://127.0.0.1:8000/docs')."
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH",
+            "HEAD"
+          ],
+          "default": "GET",
+          "description": "HTTP Method."
+        },
+        "headers": {
+          "type": "object",
+          "description": "Optional HTTP request headers dictionary."
+        },
+        "body": {
+          "type": "string",
+          "description": "Optional request body string (JSON/text)."
+        },
+        "timeout": {
+          "type": "integer",
+          "default": 10,
+          "description": "Request timeout in seconds."
+        }
+      },
+      "required": [
+        "url"
+      ]
+    }
+  },
+  {
+    "name": "capture_screen",
+    "description": "Capture the desktop screen, compress/downscale to save tokens, and return as base64 image for multimodal AI vision models (GPT-4o, Claude 3.5 Sonnet, Gemini).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "max_width": {
+          "type": "integer",
+          "default": 1280,
+          "description": "Maximum width in pixels for downscaling (preserves aspect ratio, reduces AI token consumption). Set 0 for native resolution."
+        },
+        "quality": {
+          "type": "integer",
+          "default": 75,
+          "description": "JPEG compression quality (1-100, default: 75)."
+        },
+        "save_path": {
+          "type": "string",
+          "description": "Optional file path to save the screenshot on disk (e.g. 'screenshot.jpg')."
+        },
+        "return_base64": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to return the base64 data URL in the response (default: True)."
+        }
+      }
+    }
+  },
+  {
+    "name": "get_screen_info",
+    "description": "Get information about display resolution, open application windows, and UI element positions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "show_popup",
+    "description": "Display a native Windows popup dialog / message box on the user's screen.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "default": "AI Notification",
+          "description": "Title of the popup window."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message text to display in the popup."
+        }
+      },
+      "required": [
+        "message"
+      ]
+    }
+  },
+  {
+    "name": "get_system_info",
+    "description": "Retrieve comprehensive system hardware, OS version, CPU, RAM, disk space, and network info.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_env_vars",
+    "description": "Get system environment variables or query a specific environment variable.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Specific environment variable name to query (e.g. 'PATH', 'PYTHONPATH', 'USER'). Omit for all safe variables."
+        }
+      }
+    }
+  },
+  {
+    "name": "get_privilege_info",
+    "description": "Check whether the local SHH agent currently runs with Windows Administrator (UAC elevated) rights, and which operations are available without a UAC prompt.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "run_admin_command",
+    "description": "Execute a shell command with Windows Administrator rights (e.g. netsh, sc, reg, mklink, driver/service management, writing to C:\\Program Files, killing system processes). If SHH was started with start_shh_admin.bat it runs silently; otherwise ONE UAC prompt appears on the user's screen and must be approved.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Command line to execute with administrator privileges."
+        },
+        "shell": {
+          "type": "string",
+          "enum": [
+            "cmd",
+            "powershell"
+          ],
+          "default": "cmd",
+          "description": "Which elevated shell to use."
+        },
+        "timeout": {
+          "type": "integer",
+          "default": 120,
+          "description": "Maximum seconds to wait for the command to finish."
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Optional working directory for the elevated command."
+        }
+      },
+      "required": [
+        "command"
+      ]
+    }
+  },
+  {
+    "name": "manage_firewall",
+    "description": "Add / delete / list Windows Firewall inbound rules with administrator rights (allow a local port so other machines or tunnels can reach it).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "add",
+            "delete",
+            "list"
+          ],
+          "default": "list",
+          "description": "Firewall operation to perform."
+        },
+        "name": {
+          "type": "string",
+          "description": "Rule name (used for add/delete, and as the list filter keyword)."
+        },
+        "port": {
+          "type": "integer",
+          "description": "Local TCP port to allow (required for action=add)."
+        },
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "TCP",
+            "UDP"
+          ],
+          "default": "TCP"
+        }
+      },
+      "required": [
+        "action"
+      ]
+    }
+  },
+  {
+    "name": "manage_port_forward",
+    "description": "Create / delete / list OS-level TCP port forwarding rules (netsh interface portproxy) so traffic arriving on a local port is forwarded to another local or LAN host:port. Requires Administrator.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "add",
+            "delete",
+            "list"
+          ],
+          "default": "list"
+        },
+        "listen_port": {
+          "type": "integer",
+          "description": "Local port to listen on."
+        },
+        "connect_host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Target host to forward traffic to (IP or hostname)."
+        },
+        "connect_port": {
+          "type": "integer",
+          "description": "Target port (defaults to listen_port)."
+        },
+        "listen_address": {
+          "type": "string",
+          "default": "0.0.0.0",
+          "description": "Local address to bind the listener to."
+        }
+      },
+      "required": [
+        "action"
+      ]
+    }
+  },
+  {
+    "name": "file_stat",
+    "description": "Get metadata of a local file (size, mtime, sha256). Use it before/while transferring to plan chunk offsets and to RESUME an interrupted upload/download.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "File path on the local computer."
+        },
+        "hash": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also compute the full sha256 of the file (slower for big files)."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "file_upload_chunk",
+    "description": "Upload ONE chunk of a file to an exact byte offset. Chunks keep request bodies small so the tunnel cannot be overloaded. Set offset=0 to start (or use truncate=true to overwrite); keep calling with the SAME file and increasing offsets to append. Returns next_offset so the transfer can resume precisely after a dropped tunnel.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Destination file path on the local computer."
+        },
+        "offset": {
+          "type": "integer",
+          "default": 0,
+          "description": "Byte offset where this chunk must be written (0 = start of file)."
+        },
+        "data_base64": {
+          "type": "string",
+          "description": "Base64 of the chunk (use for binary files). Max ~256 KiB decoded per call."
+        },
+        "data_text": {
+          "type": "string",
+          "description": "Plain text chunk (utf-8). Use instead of data_base64 for text files."
+        },
+        "compress": {
+          "type": "boolean",
+          "default": false,
+          "description": "Set true if the payload is gzip-compressed (client should set this for text)."
+        },
+        "truncate": {
+          "type": "boolean",
+          "default": false,
+          "description": "Truncate the destination file before writing (start of a new upload)."
+        },
+        "sha256_chunk": {
+          "type": "string",
+          "description": "Optional sha256 of the DECODED chunk; verified server-side."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "file_download_chunk",
+    "description": "Read ONE chunk of a local file from an exact byte offset and return it base64-encoded (or as utf-8 text). Small chunks are what keep tunnel transfers stable; loop over offsets until eof=true. Optionally gzip-compress the chunk to cut tunnel traffic ~3-5x for text.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Source file path on the local computer."
+        },
+        "offset": {
+          "type": "integer",
+          "default": 0,
+          "description": "Byte offset to start reading."
+        },
+        "max_bytes": {
+          "type": "integer",
+          "default": 524288,
+          "description": "Max raw bytes to return (clamped to the configured safe limit)."
+        },
+        "as_text": {
+          "type": "boolean",
+          "default": false,
+          "description": "Return utf-8 text instead of base64 (only for text files)."
+        },
+        "compress": {
+          "type": "boolean",
+          "default": false,
+          "description": "Gzip-compress the returned chunk (recommended for text/log files)."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "file_checksum",
+    "description": "Compute the sha256 (and md5) checksum of a local file to verify a transfer completed intact.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "File path on the local computer."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "file_transfer_info",
+    "description": "Explain the safe chunked-transfer strategy and the current hard size limits. Call this before moving big files so you never send an oversized packet that drops the tunnel.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  }
+]

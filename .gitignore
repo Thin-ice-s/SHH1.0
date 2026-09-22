@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+shh_config.json
+test_*.txt
+.shh_tunnel_state.json
+TUNNEL_ADDRESS_CHANGED.txt
+SEND_TO_AI.md
+cloudflared
+cloudflared.exe
