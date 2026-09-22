@@ -167,3 +167,35 @@ def test_fixed_provider_keeps_its_hostname(fake_tunnel_script, tmp_path):
     assert info.fixed is True
     assert info.url == "https://bridge.example.com"
     sup.stop()
+
+
+def test_explicit_provider_falls_back_to_quick_tunnel(tmp_path, fake_tunnel_script):
+    """If the requested fixed-address provider is missing, we must still give the user a tunnel."""
+    sup = TunnelSupervisor(local_port=18080, provider="tailscale", state_dir=tmp_path)
+
+    calls = {"requested": 0, "fallback": 0}
+
+    def _start_tailscale(timeout=25.0):
+        calls["requested"] += 1
+        return None                     # pretend tailscale is not installed
+
+    def _start_cloudflare_quick(timeout=25.0):
+        calls["fallback"] += 1
+        cmd = [sys.executable, str(fake_tunnel_script), "https://fallback.trycloudflare.com"]
+        return sup._spawn_and_capture(cmd, provider="cloudflare_quick", fixed=False, timeout=timeout)
+
+    sup._start_tailscale = _start_tailscale
+    sup._start_cloudflare_quick = _start_cloudflare_quick
+    sup._start_ssh_localhostrun = lambda timeout=25.0: None
+
+    url = sup._start_provider_preference(timeout=20)
+    assert calls["requested"] == 1
+    assert calls["fallback"] == 1
+    assert url == "https://fallback.trycloudflare.com"
+    assert sup.info.fixed is False
+    sup.stop()
+
+
+def test_provider_none_disables_tunnel(tmp_path):
+    sup = TunnelSupervisor(local_port=18080, provider="none", state_dir=tmp_path)
+    assert sup._start_provider_preference(timeout=5) is None

@@ -253,8 +253,32 @@ class TunnelSupervisor:
                     )
                 )
                 return info.url
-            if pref != "auto" and name != "cloudflare_quick":
+            if pref != "auto":
                 Logger.warning("Provider '%s' unavailable%s" % (name, (" (%s)" % last_error) if last_error else ""))
+
+        # Explicit provider failed -> fall back to a quick tunnel so the user is NOT left
+        # without any remote access. The address will be random until the fixed provider works.
+        if pref != "auto":
+            Logger.warning(
+                "Requested provider '%s' could not be started. Falling back to a QUICK tunnel "
+                "(random address) so you keep remote access. Fix the provider to get a permanent "
+                "address: python -m shh tunnel --action providers" % pref
+            )
+            for fallback in ("cloudflare_quick", "ssh_localhostrun"):
+                starter = getattr(self, "_start_" + fallback, None)
+                if starter is None:
+                    continue
+                try:
+                    info = starter(timeout=timeout)
+                except Exception:
+                    info = None
+                if info and info.url:
+                    self.info = info
+                    Logger.success(
+                        "Fallback tunnel ONLINE via %s | URL: %s (temporary random address)"
+                        % (info.provider, info.url)
+                    )
+                    return info.url
 
         Logger.warning("No tunnel provider could be started. Direct IP / LAN access will be used.")
         return None
